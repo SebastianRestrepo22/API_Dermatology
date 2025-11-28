@@ -1,15 +1,17 @@
 from flask import Flask, request, jsonify
 import numpy as np
 import joblib
-from tensorflow.keras.models import load_model
+import tensorflow as tf
 
-# Cargar modelo y scaler
-modelo = load_model("models/modelo_ann.h5")
+# Cargar modelo TFLite y scaler
+interpreter = tf.lite.Interpreter(model_path="models/modelo_ann.tflite")
+interpreter.allocate_tensors()
+
 scaler = joblib.load("models/scaler.pkl")
 
 app = Flask(__name__)
 
-# Etiquetas de salida (según tu dataset de psoriasis o clasificación de enfermedad)
+# Etiquetas de salida
 etiquetas = {
     0: "Leve",
     1: "Moderada",
@@ -19,7 +21,7 @@ etiquetas = {
     5: "Crítico"
 }
 
-# Lista de características esperadas en la misma estructura usada en entrenamiento
+# Lista de características esperadas
 campos_requeridos = [
     "eritema", "elevacion_borde", "escala_difusa", "puntuacion_folicular", "eritrodermia",
     "pustulas", "placas", "picazon", "dolor", "lesiones_orales", "poliadenopatia",
@@ -39,21 +41,25 @@ def calcular_prediccion_endpoint():
     data = request.get_json()
     print("JSON recibido:", data)
 
-    # Validación de campos
     for campo in campos_requeridos:
         if campo not in data:
             return jsonify({"error": f"Falta el campo '{campo}' en el JSON"}), 400
-    
+
     try:
         valores = [float(data[campo]) for campo in campos_requeridos]
     except ValueError:
         return jsonify({"error": "Todos los valores deben ser numéricos"}), 400
 
-    # Transformación y predicción
     valores_np = np.array(valores).reshape(1, -1)
-    valores_scaled = scaler.transform(valores_np)
-    
-    predicciones = modelo.predict(valores_scaled)
+    valores_scaled = scaler.transform(valores_np).astype(np.float32)
+
+    input_index = interpreter.get_input_details()[0]['index']
+    output_index = interpreter.get_output_details()[0]['index']
+
+    interpreter.set_tensor(input_index, valores_scaled)
+    interpreter.invoke()
+
+    predicciones = interpreter.get_tensor(output_index)
     clase_predicha = int(np.argmax(predicciones))
     resultado = etiquetas[clase_predicha]
 
@@ -68,7 +74,7 @@ def calcular_prediccion_endpoint():
 def ejemplo():
     return jsonify({
         "features_esperadas": campos_requeridos,
-        "mensaje": "Enviar POST a /api/modelo con los valores numéricos en formato JSON"
+        "mensaje": "Enviar POST a /api/predict con los valores"
     }), 200
 
 
