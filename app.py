@@ -3,7 +3,6 @@ import numpy as np
 import joblib
 import tensorflow as tf
 
-# Cargar modelo TFLite y scaler
 interpreter = tf.lite.Interpreter(model_path="models/modelo_ann.tflite")
 interpreter.allocate_tensors()
 
@@ -11,7 +10,6 @@ scaler = joblib.load("models/scaler.pkl")
 
 app = Flask(__name__)
 
-# Etiquetas de salida
 etiquetas = {
     0: "Leve",
     1: "Moderada",
@@ -21,7 +19,6 @@ etiquetas = {
     5: "Crítico"
 }
 
-# Lista de características esperadas
 campos_requeridos = [
     "eritema", "elevacion_borde", "escala_difusa", "puntuacion_folicular", "eritrodermia",
     "pustulas", "placas", "picazon", "dolor", "lesiones_orales", "poliadenopatia",
